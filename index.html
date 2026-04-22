@@ -1,0 +1,1597 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Domino牌局分鏡圖</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f3f4f6;
+      color: #222;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 430px 1fr;
+      gap: 20px;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .panel {
+      background: #fff;
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.08);
+      overflow: auto;
+    }
+
+    .panel h1 {
+      margin: 0 0 8px 0;
+      font-size: 28px;
+    }
+
+    .panel p.desc {
+      margin: 0 0 18px 0;
+      color: #666;
+      line-height: 1.7;
+      font-size: 14px;
+    }
+
+    .section {
+      border-top: 1px solid #ececec;
+      padding-top: 16px;
+      margin-top: 16px;
+    }
+
+    .section h2 {
+      margin: 0 0 12px 0;
+      font-size: 18px;
+    }
+
+    .field { margin-bottom: 12px; }
+
+    .field label {
+      display: block;
+      font-size: 13px;
+      color: #444;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+
+    .field input,
+    .field textarea,
+    .field select {
+      width: 100%;
+      border: 1px solid #d7d7d7;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      background: #fff;
+    }
+
+    .field textarea {
+      min-height: 76px;
+      resize: vertical;
+      line-height: 1.5;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .player-box {
+      border: 1px solid #ececec;
+      border-radius: 12px;
+      padding: 12px;
+      background: #fafafa;
+    }
+
+    .player-box h3 {
+      margin: 0 0 10px 0;
+      font-size: 14px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 18px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 11px 16px;
+      font-size: 14px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .btn-primary { background: #2e7d32; color: white; }
+    .btn-secondary { background: #e9eef6; color: #223; }
+
+    #statusMessage {
+      margin-top: 12px;
+      white-space: pre-line;
+      line-height: 1.7;
+      font-size: 13px;
+      min-height: 20px;
+      padding: 0;
+      border-radius: 12px;
+      border: 0;
+      display: none;
+      font-weight: 700;
+    }
+
+    #statusMessage.status-error {
+      display: block;
+      padding: 12px 14px;
+      color: #8b1e1e;
+      background: #fdecea;
+      border: 1px solid #f3b7b2;
+      box-shadow: 0 2px 8px rgba(197, 52, 52, 0.08);
+    }
+
+    #statusMessage.status-success {
+      display: block;
+      padding: 10px 14px;
+      color: #1f5f2c;
+      background: #ecf8ee;
+      border: 1px solid #b7dfbf;
+      box-shadow: 0 2px 8px rgba(50, 122, 61, 0.08);
+    }
+
+    .note {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #6b7280;
+      line-height: 1.7;
+    }
+
+    .preview-wrap {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding-top: 4px;
+    }
+
+    .phone {
+      position: relative;
+      width: 390px;
+      height: 694px;
+      border-radius: 24px;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 50% 35%, rgba(53, 191, 160, 0.32), transparent 38%),
+        linear-gradient(180deg, #0f6d64 0%, #0e7a68 34%, #0d7964 58%, #0b5c58 100%);
+      box-shadow: 0 18px 40px rgba(0,0,0,0.18);
+      border: 6px solid #111827;
+    }
+
+    .cut-label {
+      display: none;
+    }
+
+    .camera-stage {
+      position: absolute;
+      inset: 0;
+      transform-origin: center center;
+      will-change: transform;
+    }
+
+    .table-wrap,
+    .hand-wrap,
+    .player {
+      position: absolute;
+    }
+
+    .table-wrap,
+    .hand-wrap {
+      overflow: hidden;
+      z-index: 10;
+    }
+
+    #tableStage {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform-origin: center center;
+    }
+
+    #handStage {
+      position: absolute;
+      left: 50%;
+      top: 0;
+      transform-origin: top center;
+    }
+
+    .player {
+      z-index: 20;
+      text-align: center;
+      transition: opacity 0.18s ease, transform 0.18s ease;
+    }
+
+    .player.focus { z-index: 40; }
+
+    .player .avatar {
+      width: 78px;
+      height: 78px;
+      margin: 0 auto 6px auto;
+      border-radius: 50%;
+      background: linear-gradient(135deg, rgba(255,255,255,0.18), rgba(255,255,255,0.02)), #d9dde4;
+      background-size: cover;
+      background-position: center;
+      border: 3px solid rgba(255, 213, 86, 0.95);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.22);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      font-weight: 700;
+      color: #234;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .player.focus .avatar {
+      box-shadow:
+        0 0 0 4px rgba(255, 230, 120, 0.28),
+        0 4px 18px rgba(0,0,0,0.26);
+    }
+
+    .player .name {
+      font-size: 12px;
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.55);
+      margin-bottom: 4px;
+      font-weight: 700;
+    }
+
+    .player .score {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 9px;
+      background: rgba(15, 35, 39, 0.78);
+      border-radius: 8px;
+      font-size: 12px;
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.16);
+    }
+
+    .player .coin {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #fff7b0 0%, #ffc83e 35%, #e59b00 70%, #b47400 100%);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.35);
+      flex: 0 0 auto;
+    }
+
+    .player .tag {
+      position: absolute;
+      top: 10px;
+      right: -10px;
+      min-width: 34px;
+      height: 52px;
+      border-radius: 6px;
+      background: linear-gradient(180deg, #d85c4d, #b61d1d);
+      color: #ffe9a8;
+      font-size: 16px;
+      font-weight: 800;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.22);
+      border: 2px solid rgba(0,0,0,0.14);
+    }
+
+    .domino {
+      position: absolute;
+      background: #fffdf7;
+      border: 1.5px solid #b53a2d;
+      border-radius: 8px;
+      display: flex;
+      box-sizing: border-box;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.16), 0 3px 0 #c94033;
+      overflow: hidden;
+    }
+
+    .domino.horizontal {
+      width: 120px;
+      height: 60px;
+      flex-direction: row;
+    }
+
+    .domino.vertical {
+      width: 60px;
+      height: 120px;
+      flex-direction: column;
+    }
+
+    .domino.invalid {
+      border-color: #e53935;
+      box-shadow: 0 0 0 3px rgba(229, 57, 53, 0.18);
+    }
+
+    .half {
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      padding: 6px;
+      box-sizing: border-box;
+    }
+
+    .domino.horizontal .half:first-child { border-right: 1.5px solid #b53a2d; }
+    .domino.vertical .half:first-child { border-bottom: 1.5px solid #b53a2d; }
+
+    .pip {
+      width: 8px;
+      height: 8px;
+      background: #ff1d25;
+      border-radius: 50%;
+      justify-self: center;
+      align-self: center;
+      box-shadow: 0 0 1px rgba(0,0,0,0.18);
+    }
+
+    @media (max-width: 1100px) {
+      .app { grid-template-columns: 1fr; }
+      .preview-wrap { padding-bottom: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="panel">
+      <h1>Domino牌局分鏡圖</h1>
+      <p class="desc">
+        用來快速做 Domino 牌局畫面的遠景、中景、近景特寫示意。<br>
+        使用方式：先選鏡頭類型與焦點玩家，再輸入桌面牌型、下方主角手牌與各玩家資訊，最後按「更新預覽」即可。
+      </p>
+
+      <div class="section">
+        <h2>1. 分鏡基本設定</h2>
+
+        <div class="grid-2">
+          <div class="field">
+            <label for="cutNumber">Cut 編號</label>
+            <input id="cutNumber" type="text" value="01" />
+          </div>
+          <div class="field">
+            <label for="shotType">鏡頭類型</label>
+            <select id="shotType">
+              <option value="wide">wide 遠景</option>
+              <option value="medium" selected>medium 中景</option>
+              <option value="close">close 近景特寫</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="field">
+            <label for="focusPlayer">焦點玩家</label>
+            <select id="focusPlayer">
+              <option value="top">上方玩家</option>
+              <option value="left">左方玩家</option>
+              <option value="right">右方玩家</option>
+              <option value="bottom" selected>下方玩家</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="focusHand">下方主角手牌</label>
+            <input id="focusHand" type="text" value="0-3 3-5 5-6" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="tableTiles">桌面牌型</label>
+          <textarea id="tableTiles">0-4 4-4 4-5 5-2 2-2 2-1 1-6 6-0</textarea>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>2. 玩家資料</h2>
+        <div class="grid-4">
+          <div class="player-box">
+            <h3>上方玩家</h3>
+            <div class="field">
+              <label for="topName">名稱</label>
+              <input id="topName" type="text" value="Adi" />
+            </div>
+            <div class="field">
+              <label for="topScore">分數</label>
+              <input id="topScore" type="text" value="150000" />
+            </div>
+            <div class="field">
+              <label for="topTag">對手牌數</label>
+              <input id="topTag" type="text" value="4" />
+            </div>
+            <div class="field">
+              <label for="topAvatar">頭像圖片</label>
+              <input id="topAvatar" type="file" accept="image/*" />
+            </div>
+          </div>
+
+          <div class="player-box">
+            <h3>左方玩家</h3>
+            <div class="field">
+              <label for="leftName">名稱</label>
+              <input id="leftName" type="text" value="Bob" />
+            </div>
+            <div class="field">
+              <label for="leftScore">分數</label>
+              <input id="leftScore" type="text" value="500000" />
+            </div>
+            <div class="field">
+              <label for="leftTag">對手牌數</label>
+              <input id="leftTag" type="text" value="5" />
+            </div>
+            <div class="field">
+              <label for="leftAvatar">頭像圖片</label>
+              <input id="leftAvatar" type="file" accept="image/*" />
+            </div>
+          </div>
+
+          <div class="player-box">
+            <h3>右方玩家</h3>
+            <div class="field">
+              <label for="rightName">名稱</label>
+              <input id="rightName" type="text" value="Chris" />
+            </div>
+            <div class="field">
+              <label for="rightScore">分數</label>
+              <input id="rightScore" type="text" value="300000" />
+            </div>
+            <div class="field">
+              <label for="rightTag">對手牌數</label>
+              <input id="rightTag" type="text" value="5" />
+            </div>
+            <div class="field">
+              <label for="rightAvatar">頭像圖片</label>
+              <input id="rightAvatar" type="file" accept="image/*" />
+            </div>
+          </div>
+
+          <div class="player-box">
+            <h3>下方玩家</h3>
+            <div class="field">
+              <label for="bottomName">名稱</label>
+              <input id="bottomName" type="text" value="Calvin" />
+            </div>
+            <div class="field">
+              <label for="bottomScore">分數</label>
+              <input id="bottomScore" type="text" value="100" />
+            </div>
+            <div class="field">
+              <label for="bottomTag">對手牌數</label>
+              <input id="bottomTag" type="text" value="" />
+            </div>
+            <div class="field">
+              <label for="bottomAvatar">頭像圖片</label>
+              <input id="bottomAvatar" type="file" accept="image/*" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn-primary" onclick="renderStoryboard()">更新預覽</button>
+        <button class="btn-secondary" onclick="loadDemoWide()">載入遠景示範</button>
+        <button class="btn-secondary" onclick="loadDemoMedium()">載入中景示範</button>
+        <button class="btn-secondary" onclick="loadDemoClose()">載入近景示範</button>
+      </div>
+
+      <div id="statusMessage"></div>
+
+      <div class="note">
+        示範按鈕用途：<br>
+        遠景示範＝完整牌桌與四位玩家同時入鏡。<br>
+        中景示範＝聚焦某位玩家，但仍保留下方主角區塊（頭像在左、手牌在右）。<br>
+        近景示範＝只看焦點玩家；若焦點是下方主角，才顯示完整主角手牌。
+      </div>
+
+      <div class="note">
+        版面規則：wide / medium 皆固定保留下方主角區塊；close 為了穩定畫面，已拿掉中央牌局。
+      </div>
+    </div>
+
+    <div class="preview-wrap">
+      <div id="storyboardFrame" class="phone">
+        <div id="cutLabel" class="cut-label">CUT 01 • MEDIUM • BOTTOM</div>
+
+        <div id="cameraStage" class="camera-stage">
+          <div id="tableWrap" class="table-wrap">
+            <div id="tableStage"></div>
+          </div>
+
+          <div class="player" data-seat="top">
+            <div class="avatar">A</div>
+            <div class="tag"></div>
+            <div class="name">Adi</div>
+            <div class="score"><span class="coin"></span><span class="score-text">150,000</span></div>
+          </div>
+
+          <div class="player" data-seat="left">
+            <div class="avatar">B</div>
+            <div class="tag"></div>
+            <div class="name">Bob</div>
+            <div class="score"><span class="coin"></span><span class="score-text">500,000</span></div>
+          </div>
+
+          <div class="player" data-seat="right">
+            <div class="avatar">C</div>
+            <div class="tag"></div>
+            <div class="name">Chris</div>
+            <div class="score"><span class="coin"></span><span class="score-text">300,000</span></div>
+          </div>
+
+          <div class="player" data-seat="bottom">
+            <div class="avatar">C</div>
+            <div class="tag"></div>
+            <div class="name">Calvin</div>
+            <div class="score"><span class="coin"></span><span class="score-text">100</span></div>
+          </div>
+
+          <div id="handWrap" class="hand-wrap">
+            <div id="handStage"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const CELL = 60;
+    const H_W = CELL * 2;
+    const H_H = CELL;
+    const V_W = CELL;
+    const V_H = CELL * 2;
+
+    const START_X = 120;
+    const START_Y = 140;
+
+    const ROW_COUNT = 5;
+    const DOWN_COUNT = 3;
+    const JOIN_OVERLAP = 2;
+    const CANVAS_PADDING = 80;
+    const MIN_STAGE_WIDTH = 850;
+    const MIN_STAGE_HEIGHT = 420;
+
+    const avatarState = {
+      top: "",
+      left: "",
+      right: "",
+      bottom: ""
+    };
+
+    const pipsMap = {
+      0: [],
+      1: [5],
+      2: [1, 9],
+      3: [1, 5, 9],
+      4: [1, 3, 7, 9],
+      5: [1, 3, 5, 7, 9],
+      6: [1, 3, 4, 6, 7, 9]
+    };
+
+    const A = {
+      LEFT_CENTER: "LEFT_CENTER",
+      RIGHT_CENTER: "RIGHT_CENTER",
+      TOP_CENTER: "TOP_CENTER",
+      BOTTOM_CENTER: "BOTTOM_CENTER",
+      LEFT_UPPER: "LEFT_UPPER",
+      RIGHT_UPPER: "RIGHT_UPPER",
+      LEFT_LOWER: "LEFT_LOWER",
+      RIGHT_LOWER: "RIGHT_LOWER"
+    };
+
+    const FIXED_SEAT_LAYOUT = {
+      top:    { left: "50%", top: 22, transform: "translateX(-50%)", width: 96, avatar: 72, opacity: 1, align: "center" },
+      left:   { left: 12, top: 248, width: 102, avatar: 78, opacity: 0.95, align: "center" },
+      right:  { right: 12, top: 248, width: 102, avatar: 78, opacity: 0.95, align: "center" },
+      bottom: { left: "50%", bottom: 18, transform: "translateX(-50%)", width: 122, avatar: 92, opacity: 1, align: "center" }
+    };
+
+    const TABLE_BASE = {
+      left: 20,
+      top: 112,
+      width: 350,
+      height: 286
+    };
+
+    const WIDE_CAMERA = {
+      stageScale: 1,
+      stageX: 0,
+      stageY: 0,
+      tableScale: 0.39
+    };
+
+    const MEDIUM_CAMERA = {
+      bottom: { stageScale: 1.08, stageX: 0, stageY: -24, tableScale: 0.40 },
+      left:   { stageScale: 1.10, stageX: 36, stageY: -2, tableScale: 0.40 },
+      right:  { stageScale: 1.10, stageX: -36, stageY: -2, tableScale: 0.40 },
+      top:    { stageScale: 1.08, stageX: 0, stageY: 28, tableScale: 0.40 }
+    };
+
+    const BOTTOM_HERO_CLUSTERS = {
+      wide: {
+        player: {
+          left: 78,
+          bottom: 28,
+          width: 108,
+          avatar: 92,
+          opacity: 1,
+          align: "center"
+        },
+        handBox: {
+          left: 182,
+          bottom: 38,
+          width: 188,
+          height: 124
+        },
+        handScale: 0.62
+      },
+      medium: {
+        bottom: {
+          player: {
+            left: 70,
+            bottom: 46,
+            width: 124,
+            avatar: 108,
+            opacity: 1,
+            align: "center"
+          },
+          handBox: {
+            left: 184,
+            bottom: 59,
+            width: 188,
+            height: 124
+          },
+          handScale: 0.66
+        },
+        other: {
+          player: {
+            left: 78,
+            bottom: 40,
+            width: 98,
+            avatar: 82,
+            opacity: 0.78,
+            align: "center"
+          },
+          handBox: {
+            left: 182,
+            bottom: 40,
+            width: 188,
+            height: 124
+          },
+          handScale: 0.66
+        }
+      },
+      closeBottom: {
+        player: {
+          left: 18,
+          bottom: 138,
+          width: 156,
+          avatar: 132,
+          opacity: 1,
+          align: "left"
+        },
+        handBox: {
+          left: 170,
+          bottom: 154,
+          width: 198,
+          height: 148
+        },
+        handScale: 0.84
+      }
+    };
+
+    const CLOSE_PLAYER_LAYOUTS = {
+      left: {
+        top: { hidden: true },
+        left: {
+          left: 36,
+          top: 212,
+          width: 172,
+          avatar: 150,
+          opacity: 1,
+          align: "center"
+        },
+        right: { hidden: true },
+        bottom: { hidden: true }
+      },
+      right: {
+        top: { hidden: true },
+        left: { hidden: true },
+        right: {
+          right: 36,
+          top: 212,
+          width: 172,
+          avatar: 150,
+          opacity: 1,
+          align: "center"
+        },
+        bottom: { hidden: true }
+      },
+      top: {
+        top: {
+          left: 36,
+          top: 44,
+          width: 170,
+          avatar: 148,
+          opacity: 1,
+          align: "center"
+        },
+        left: { hidden: true },
+        right: { hidden: true },
+        bottom: { hidden: true }
+      },
+      bottom: {
+        top: { hidden: true },
+        left: { hidden: true },
+        right: { hidden: true },
+        bottom: BOTTOM_HERO_CLUSTERS.closeBottom.player
+      }
+    };
+
+    function parseTiles(input) {
+      return input
+        .trim()
+        .split(/\s+/)
+        .map(raw => {
+          const [a, b] = raw.split("-").map(Number);
+          if (Number.isInteger(a) && Number.isInteger(b) && a >= 0 && a <= 6 && b >= 0 && b <= 6) {
+            return { a, b, raw };
+          }
+          return null;
+        })
+        .filter(Boolean);
+    }
+
+    function normalizeTileKey(tile) {
+      const low = Math.min(tile.a, tile.b);
+      const high = Math.max(tile.a, tile.b);
+      return `${low}-${high}`;
+    }
+
+    function findDuplicateTiles(tiles) {
+      const counts = new Map();
+      const duplicates = [];
+      for (const tile of tiles) {
+        const key = normalizeTileKey(tile);
+        counts.set(key, (counts.get(key) || 0) + 1);
+      }
+      for (const [key, count] of counts.entries()) {
+        if (count > 1) duplicates.push(key);
+      }
+      return duplicates;
+    }
+
+    function findCrossAreaDuplicates(firstTiles, secondTiles) {
+      const firstSet = new Set(firstTiles.map(normalizeTileKey));
+      const secondSet = new Set(secondTiles.map(normalizeTileKey));
+      return [...firstSet].filter(key => secondSet.has(key));
+    }
+
+    function validateTileInputs(tableInput, handInput) {
+      const messages = [];
+      const tableTiles = parseTiles(tableInput);
+      const handTiles = parseTiles(handInput);
+
+      if (!tableTiles.length) {
+        messages.push("桌面牌型為空");
+      }
+
+      const tableDuplicates = findDuplicateTiles(tableTiles);
+      if (tableDuplicates.length > 0) {
+        messages.push(`中央牌局有重複牌：${tableDuplicates.join("、")}`);
+      }
+
+      const handDuplicates = findDuplicateTiles(handTiles);
+      if (handDuplicates.length > 0) {
+        messages.push(`主角手牌有重複牌：${handDuplicates.join("、")}`);
+      }
+
+      const crossDuplicates = findCrossAreaDuplicates(tableTiles, handTiles);
+      if (crossDuplicates.length > 0) {
+        messages.push(`主角手牌與中央牌局有重複牌：${crossDuplicates.join("、")}`);
+      }
+
+      return {
+        ok: messages.length === 0,
+        messages,
+        tableTiles,
+        handTiles
+      };
+    }
+
+    function isDouble(tile) {
+      return tile.a === tile.b;
+    }
+
+    function valuesOf(tile, flipped) {
+      return flipped ? [tile.b, tile.a] : [tile.a, tile.b];
+    }
+
+    function rowOrientation(tile) {
+      return isDouble(tile) ? "vertical" : "horizontal";
+    }
+
+    function downOrientation(tile, isTurnFirst = false) {
+      if (isTurnFirst) return "vertical";
+      return isDouble(tile) ? "horizontal" : "vertical";
+    }
+
+    function sizeOf(orientation) {
+      return orientation === "horizontal" ? { w: H_W, h: H_H } : { w: V_W, h: V_H };
+    }
+
+    function anchorPoint(orientation, anchorName) {
+      const { w, h } = sizeOf(orientation);
+      switch (anchorName) {
+        case A.LEFT_CENTER: return { x: 0, y: h / 2 };
+        case A.RIGHT_CENTER: return { x: w, y: h / 2 };
+        case A.TOP_CENTER: return { x: w / 2, y: 0 };
+        case A.BOTTOM_CENTER: return { x: w / 2, y: h };
+        case A.LEFT_UPPER: return { x: 0, y: h * 0.25 };
+        case A.RIGHT_UPPER: return { x: w, y: h * 0.25 };
+        case A.LEFT_LOWER: return { x: 0, y: h * 0.75 };
+        case A.RIGHT_LOWER: return { x: w, y: h * 0.75 };
+        default: return { x: 0, y: h / 2 };
+      }
+    }
+
+    function createDominoElement(tile, orientation, x, y, invalid = false, flipped = false) {
+      const domino = document.createElement("div");
+      domino.className = `domino ${orientation}${invalid ? " invalid" : ""}`;
+      domino.style.left = `${x}px`;
+      domino.style.top = `${y}px`;
+
+      const values = flipped ? [tile.b, tile.a] : [tile.a, tile.b];
+      values.forEach(num => {
+        const half = document.createElement("div");
+        half.className = "half";
+        for (let i = 1; i <= 9; i++) {
+          const cell = document.createElement("div");
+          if (pipsMap[num].includes(i)) {
+            const pip = document.createElement("div");
+            pip.className = "pip";
+            cell.appendChild(pip);
+          }
+          half.appendChild(cell);
+        }
+        domino.appendChild(half);
+      });
+      return domino;
+    }
+
+    function chooseRowPlacement(tile, incomingValue, direction, forceHorizontal = false) {
+      const orientation = forceHorizontal ? "horizontal" : rowOrientation(tile);
+
+      if (forceHorizontal) {
+        if (direction === "right") {
+          if (tile.a === incomingValue) return { orientation, flipped: false, matched: true, exitValue: tile.b };
+          if (tile.b === incomingValue) return { orientation, flipped: true, matched: true, exitValue: tile.a };
+        } else {
+          if (tile.b === incomingValue) return { orientation, flipped: false, matched: true, exitValue: tile.a };
+          if (tile.a === incomingValue) return { orientation, flipped: true, matched: true, exitValue: tile.b };
+        }
+        return { orientation, flipped: false, matched: false, exitValue: null };
+      }
+
+      if (isDouble(tile)) {
+        return { orientation, flipped: false, matched: tile.a === incomingValue, exitValue: tile.a };
+      }
+
+      if (direction === "right") {
+        if (tile.a === incomingValue) return { orientation, flipped: false, matched: true, exitValue: tile.b };
+        if (tile.b === incomingValue) return { orientation, flipped: true, matched: true, exitValue: tile.a };
+      } else {
+        if (tile.b === incomingValue) return { orientation, flipped: false, matched: true, exitValue: tile.a };
+        if (tile.a === incomingValue) return { orientation, flipped: true, matched: true, exitValue: tile.b };
+      }
+
+      return { orientation, flipped: false, matched: false, exitValue: null };
+    }
+
+    function chooseVerticalTopPlacement(tile, incomingValue, isTurnFirst = false) {
+      const orientation = downOrientation(tile, isTurnFirst);
+      if (isDouble(tile)) {
+        return { orientation, flipped: false, matched: tile.a === incomingValue, exitValue: tile.a };
+      }
+      if (tile.a === incomingValue) return { orientation, flipped: false, matched: true, exitValue: tile.b };
+      if (tile.b === incomingValue) return { orientation, flipped: true, matched: true, exitValue: tile.a };
+      return { orientation, flipped: false, matched: false, exitValue: null };
+    }
+
+    function relationRule(prevItem, currTile, phase, direction) {
+      const prevIsDouble = isDouble(prevItem.tile);
+      const currIsDouble = isDouble(currTile);
+
+      if (phase === "row") {
+        return {
+          prevAnchor: direction === "right" ? A.RIGHT_CENTER : A.LEFT_CENTER,
+          currAnchor: direction === "right" ? A.LEFT_CENTER : A.RIGHT_CENTER,
+          outAnchor: direction === "right" ? A.RIGHT_CENTER : A.LEFT_CENTER,
+          axis: "horizontal",
+          chooser: "row"
+        };
+      }
+
+      if (phase === "turnDown") {
+        if (direction === "right") {
+          if (prevIsDouble && !currIsDouble) {
+            return { prevAnchor: A.BOTTOM_CENTER, currAnchor: A.TOP_CENTER, outAnchor: A.BOTTOM_CENTER, axis: "vertical", chooser: "verticalTurnFirst" };
+          }
+          if (!prevIsDouble && currIsDouble) {
+            return { prevAnchor: A.RIGHT_CENTER, currAnchor: A.LEFT_CENTER, outAnchor: A.BOTTOM_CENTER, axis: "horizontal", chooser: "verticalTurnFirst" };
+          }
+          return { prevAnchor: A.RIGHT_CENTER, currAnchor: A.LEFT_UPPER, outAnchor: A.BOTTOM_CENTER, axis: "horizontal", chooser: "verticalTurnFirst" };
+        }
+        if (prevIsDouble && !currIsDouble) {
+          return { prevAnchor: A.BOTTOM_CENTER, currAnchor: A.TOP_CENTER, outAnchor: A.BOTTOM_CENTER, axis: "vertical", chooser: "verticalTurnFirst" };
+        }
+        if (!prevIsDouble && currIsDouble) {
+          return { prevAnchor: A.LEFT_CENTER, currAnchor: A.RIGHT_CENTER, outAnchor: A.BOTTOM_CENTER, axis: "horizontal", chooser: "verticalTurnFirst" };
+        }
+        return { prevAnchor: A.LEFT_CENTER, currAnchor: A.RIGHT_UPPER, outAnchor: A.BOTTOM_CENTER, axis: "horizontal", chooser: "verticalTurnFirst" };
+      }
+
+      if (phase === "down") {
+        return { prevAnchor: A.BOTTOM_CENTER, currAnchor: A.TOP_CENTER, outAnchor: A.BOTTOM_CENTER, axis: "vertical", chooser: "verticalDown" };
+      }
+
+      if (phase === "turnRow") {
+        if (direction === "left") {
+          if (prevIsDouble && !currIsDouble) {
+            return { prevAnchor: A.LEFT_CENTER, currAnchor: A.RIGHT_CENTER, outAnchor: A.LEFT_CENTER, axis: "horizontal", chooser: "turnRowBridge" };
+          }
+          if (!prevIsDouble && currIsDouble) {
+            return { prevAnchor: A.LEFT_LOWER, currAnchor: A.RIGHT_CENTER, outAnchor: A.LEFT_CENTER, axis: "horizontal", chooser: "turnRowBridge" };
+          }
+          return { prevAnchor: A.LEFT_LOWER, currAnchor: A.RIGHT_CENTER, outAnchor: A.LEFT_CENTER, axis: "horizontal", chooser: "turnRowBridge" };
+        }
+        if (prevIsDouble && !currIsDouble) {
+          return { prevAnchor: A.RIGHT_CENTER, currAnchor: A.LEFT_CENTER, outAnchor: A.RIGHT_CENTER, axis: "horizontal", chooser: "turnRowBridge" };
+        }
+        if (!prevIsDouble && currIsDouble) {
+          return { prevAnchor: A.RIGHT_LOWER, currAnchor: A.LEFT_CENTER, outAnchor: A.RIGHT_CENTER, axis: "horizontal", chooser: "turnRowBridge" };
+        }
+        return { prevAnchor: A.RIGHT_LOWER, currAnchor: A.LEFT_CENTER, outAnchor: A.RIGHT_CENTER, axis: "horizontal", chooser: "turnRowBridge" };
+      }
+
+      return { prevAnchor: A.RIGHT_CENTER, currAnchor: A.LEFT_CENTER, outAnchor: A.RIGHT_CENTER, axis: "horizontal", chooser: "row" };
+    }
+
+    function placeByRule(prevItem, currTile, phase, direction, label) {
+      const rule = relationRule(prevItem, currTile, phase, direction);
+
+      let choice;
+      if (rule.chooser === "row") {
+        choice = chooseRowPlacement(currTile, prevItem.exitValue, direction, false);
+      } else if (rule.chooser === "turnRowBridge") {
+        choice = chooseRowPlacement(currTile, prevItem.exitValue, direction, true);
+      } else {
+        choice = chooseVerticalTopPlacement(currTile, prevItem.exitValue, rule.chooser === "verticalTurnFirst");
+      }
+
+      const prevLocal = anchorPoint(prevItem.orientation, rule.prevAnchor);
+      const currLocal = anchorPoint(choice.orientation, rule.currAnchor);
+      const prevGlobalX = prevItem.x + prevLocal.x;
+      const prevGlobalY = prevItem.y + prevLocal.y;
+
+      let x = prevGlobalX - currLocal.x;
+      let y = prevGlobalY - currLocal.y;
+
+      if (rule.axis === "horizontal") {
+        x += direction === "right" ? -JOIN_OVERLAP : JOIN_OVERLAP;
+      } else {
+        y -= JOIN_OVERLAP;
+      }
+
+      const outLocal = anchorPoint(choice.orientation, rule.outAnchor);
+      return {
+        tile: currTile,
+        orientation: choice.orientation,
+        x,
+        y,
+        flipped: choice.flipped,
+        invalid: !choice.matched,
+        reason: choice.matched ? "" : `${label} 接點數不符`,
+        exitValue: choice.exitValue,
+        flow: phase,
+        dir: direction,
+        outX: x + outLocal.x,
+        outY: y + outLocal.y
+      };
+    }
+
+    function placeFirstTile(tile) {
+      const orientation = rowOrientation(tile);
+      const x = START_X;
+      const y = orientation === "horizontal" ? START_Y : START_Y - CELL / 2;
+      const flipped = false;
+      const vals = valuesOf(tile, flipped);
+      const exitValue = isDouble(tile) ? tile.a : vals[1];
+      const outLocal = anchorPoint(orientation, A.RIGHT_CENTER);
+
+      return {
+        tile,
+        orientation,
+        x,
+        y,
+        flipped,
+        invalid: false,
+        reason: "",
+        exitValue,
+        flow: "row",
+        dir: "right",
+        outX: x + outLocal.x,
+        outY: y + outLocal.y
+      };
+    }
+
+    function shiftPlacedToVisibleArea(placed, shotType = "wide") {
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+
+      for (const item of placed) {
+        const size = sizeOf(item.orientation);
+        minX = Math.min(minX, item.x);
+        minY = Math.min(minY, item.y);
+        maxX = Math.max(maxX, item.x + size.w);
+        maxY = Math.max(maxY, item.y + size.h);
+      }
+
+      const contentWidth = maxX - minX;
+      const contentHeight = maxY - minY;
+
+      let targetWidth = contentWidth + CANVAS_PADDING * 2;
+      let targetHeight = contentHeight + CANVAS_PADDING * 2;
+      let shiftX = CANVAS_PADDING - minX;
+      let shiftY = CANVAS_PADDING - minY;
+
+      if (shotType === "wide") {
+        targetWidth = Math.max(targetWidth, MIN_STAGE_WIDTH);
+        targetHeight = Math.max(targetHeight, MIN_STAGE_HEIGHT);
+        shiftX = ((targetWidth - contentWidth) / 2) - minX;
+      }
+
+      for (const item of placed) {
+        item.x += shiftX;
+        item.y += shiftY;
+        item.outX += shiftX;
+        item.outY += shiftY;
+      }
+
+      return {
+        width: targetWidth,
+        height: targetHeight
+      };
+    }
+
+    function formatScore(raw) {
+      const num = Number(String(raw).replace(/,/g, ""));
+      if (!Number.isNaN(num)) return num.toLocaleString("en-US");
+      return raw || "";
+    }
+
+    function getInitial(name, fallback) {
+      if (!name || !name.trim()) return fallback;
+      return name.trim().charAt(0).toUpperCase();
+    }
+
+    function getBottomHeroCluster(shotType, focusPlayer) {
+      if (shotType === "wide") return BOTTOM_HERO_CLUSTERS.wide;
+      if (shotType === "medium") {
+        return focusPlayer === "bottom"
+          ? BOTTOM_HERO_CLUSTERS.medium.bottom
+          : BOTTOM_HERO_CLUSTERS.medium.other;
+      }
+      if (shotType === "close" && focusPlayer === "bottom") {
+        return BOTTOM_HERO_CLUSTERS.closeBottom;
+      }
+      return null;
+    }
+
+    function renderTableChain(container, input, shotType = "wide") {
+      container.innerHTML = "";
+      const tiles = parseTiles(input);
+
+      if (!tiles.length) {
+        container.style.width = "700px";
+        container.style.height = "300px";
+        return { ok: false, messages: ["桌面牌型為空"] };
+      }
+
+      const duplicateTiles = findDuplicateTiles(tiles);
+      if (duplicateTiles.length > 0) {
+        return { ok: false, messages: [`桌面牌型有重複牌：${duplicateTiles.join("、")}`] };
+      }
+
+      const placed = [];
+      const errors = [];
+      let direction = "right";
+      let phase = "row";
+      let rowCount = 0;
+      let downCount = 0;
+
+      const first = placeFirstTile(tiles[0]);
+      placed.push(first);
+      rowCount = 1;
+
+      if (rowCount === ROW_COUNT) {
+        phase = "turnDown";
+        rowCount = 0;
+        downCount = 0;
+      }
+
+      for (let i = 1; i < tiles.length; i++) {
+        const prev = placed[placed.length - 1];
+        const tile = tiles[i];
+        let label = "";
+        let item;
+
+        if (phase === "row") {
+          label = direction === "right" ? "橫排向右" : "橫排向左";
+          item = placeByRule(prev, tile, "row", direction, label);
+          rowCount++;
+          if (rowCount === ROW_COUNT) {
+            phase = "turnDown";
+            rowCount = 0;
+            downCount = 0;
+          }
+        } else if (phase === "turnDown") {
+          label = "轉彎第一張";
+          item = placeByRule(prev, tile, "turnDown", direction, label);
+          downCount = 1;
+          phase = downCount === DOWN_COUNT ? "turnRow" : "down";
+        } else if (phase === "down") {
+          label = downCount === 1 ? "下行第二張" : "下行第三張";
+          item = placeByRule(prev, tile, "down", direction, label);
+          downCount++;
+          if (downCount === DOWN_COUNT) {
+            phase = "turnRow";
+          }
+        } else {
+          direction = direction === "right" ? "left" : "right";
+          label = direction === "right" ? "左側轉回向右第一張" : "右側轉回向左第一張";
+          item = placeByRule(prev, tile, "turnRow", direction, label);
+          phase = "row";
+          rowCount = 1;
+          if (rowCount === ROW_COUNT) {
+            phase = "turnDown";
+            rowCount = 0;
+            downCount = 0;
+          }
+        }
+
+        placed.push(item);
+
+        if (item.invalid) {
+          item.invalid = true;
+          if (placed[i - 1]) placed[i - 1].invalid = true;
+          errors.push(`第 ${i} 張「${tiles[i - 1].raw}」接第 ${i + 1} 張「${tile.raw}」有問題：${item.reason}`);
+        }
+      }
+
+      const canvasSize = shiftPlacedToVisibleArea(placed, shotType);
+      container.style.width = `${canvasSize.width}px`;
+      container.style.height = `${canvasSize.height}px`;
+
+      placed.forEach((item, index) => {
+        const el = createDominoElement(item.tile, item.orientation, item.x, item.y, item.invalid, item.flipped);
+        el.style.zIndex = String(index + 1);
+        container.appendChild(el);
+      });
+
+      return { ok: errors.length === 0, messages: errors };
+    }
+
+    function renderHand(container, input) {
+      container.innerHTML = "";
+      const tiles = parseTiles(input);
+
+      if (!tiles.length) {
+        container.style.width = "280px";
+        container.style.height = "130px";
+        return;
+      }
+
+      let x = 0;
+      const y = 0;
+      const gap = 12;
+
+      tiles.forEach((tile, index) => {
+        const domino = createDominoElement(tile, "vertical", x, y, false, false);
+        domino.style.zIndex = String(index + 1);
+        container.appendChild(domino);
+        x += V_W + gap;
+      });
+
+      container.style.width = `${Math.max(x - gap, 60)}px`;
+      container.style.height = `${V_H}px`;
+    }
+
+    function toCssValue(value) {
+      if (value == null) return "";
+      return typeof value === "number" ? `${value}px` : value;
+    }
+
+    function setBoxStyles(el, box) {
+      const props = ["left", "right", "top", "bottom", "width", "height"];
+      for (const prop of props) {
+        el.style[prop] = box && prop in box ? toCssValue(box[prop]) : "";
+      }
+    }
+
+    function updateSeatContent(seat) {
+      const player = document.querySelector(`.player[data-seat="${seat}"]`);
+      const avatar = player.querySelector(".avatar");
+      const nameEl = player.querySelector(".name");
+      const scoreEl = player.querySelector(".score-text");
+      const tagEl = player.querySelector(".tag");
+
+      const nameValue = document.getElementById(`${seat}Name`).value.trim();
+      const scoreValue = document.getElementById(`${seat}Score`).value.trim();
+      const tagValue = document.getElementById(`${seat}Tag`).value.trim();
+
+      nameEl.textContent = nameValue || seat;
+      scoreEl.textContent = formatScore(scoreValue || "0");
+
+      if (tagValue) {
+        tagEl.textContent = tagValue;
+        tagEl.style.display = "flex";
+      } else {
+        tagEl.textContent = "";
+        tagEl.style.display = "none";
+      }
+
+      if (avatarState[seat]) {
+        avatar.style.backgroundImage = `url(${avatarState[seat]})`;
+        avatar.textContent = "";
+      } else {
+        avatar.style.backgroundImage = "";
+        avatar.textContent = getInitial(nameValue, seat.charAt(0));
+      }
+    }
+
+    function clone(obj) {
+      return JSON.parse(JSON.stringify(obj));
+    }
+
+    function getSeatLayoutForShot(shotType, focusPlayer) {
+      const players = clone(FIXED_SEAT_LAYOUT);
+
+      if (shotType === "wide") {
+        players.top.avatar = 66;
+        players.top.width = 90;
+        players.left.avatar = 64;
+        players.left.width = 88;
+        players.right.avatar = 64;
+        players.right.width = 88;
+        players.bottom = getBottomHeroCluster("wide", focusPlayer).player;
+        return players;
+      }
+
+      if (shotType === "medium") {
+        players.top = {
+          left: "50%",
+          top: 10,
+          transform: "translateX(-50%)",
+          width: 90,
+          avatar: 68,
+          opacity: 0.72,
+          align: "center"
+        };
+
+        players.left = {
+          left: 4,
+          top: 228,
+          width: 92,
+          avatar: 70,
+          opacity: 0.72,
+          align: "center"
+        };
+
+        players.right = {
+          right: 4,
+          top: 228,
+          width: 92,
+          avatar: 70,
+          opacity: 0.72,
+          align: "center"
+        };
+
+        players.bottom = getBottomHeroCluster("medium", focusPlayer).player;
+        players[focusPlayer].opacity = 1;
+
+        if (focusPlayer === "top") {
+          players.top = {
+            left: "50%",
+            top: -14,
+            transform: "translateX(-50%)",
+            width: 116,
+            avatar: 90,
+            opacity: 1,
+            align: "center"
+          };
+        }
+
+        if (focusPlayer === "left") {
+          players.left = {
+            left: -16,
+            top: 220,
+            width: 116,
+            avatar: 90,
+            opacity: 1,
+            align: "center"
+          };
+        }
+
+        if (focusPlayer === "right") {
+          players.right = {
+            right: -16,
+            top: 220,
+            width: 116,
+            avatar: 90,
+            opacity: 1,
+            align: "center"
+          };
+        }
+
+        if (focusPlayer === "bottom") {
+          players.bottom = getBottomHeroCluster("medium", "bottom").player;
+        }
+
+        return players;
+      }
+
+      return clone(CLOSE_PLAYER_LAYOUTS[focusPlayer] || CLOSE_PLAYER_LAYOUTS.bottom);
+    }
+
+    function applyPlayerLayout(seat, config, isFocus) {
+      const player = document.querySelector(`.player[data-seat="${seat}"]`);
+      const avatar = player.querySelector(".avatar");
+
+      if (!config || config.hidden) {
+        player.style.display = "none";
+        return;
+      }
+
+      player.style.display = "block";
+      setBoxStyles(player, config);
+      player.style.opacity = config.opacity != null ? String(config.opacity) : "1";
+      player.style.transform = config.transform || "";
+      player.style.textAlign = config.align || "center";
+      player.classList.toggle("focus", !!isFocus);
+      player.style.zIndex = isFocus ? "40" : "20";
+
+      const avatarSize = config.avatar || 78;
+      avatar.style.width = `${avatarSize}px`;
+      avatar.style.height = `${avatarSize}px`;
+
+      if ((config.align || "center") === "left") {
+        avatar.style.margin = "0 0 6px 0";
+      } else if ((config.align || "center") === "right") {
+        avatar.style.margin = "0 0 6px auto";
+      } else {
+        avatar.style.margin = "0 auto 6px auto";
+      }
+    }
+
+    function getCameraConfig(shotType, focusPlayer) {
+      if (shotType === "wide") return WIDE_CAMERA;
+      if (shotType === "medium") return MEDIUM_CAMERA[focusPlayer] || MEDIUM_CAMERA.bottom;
+      return { stageScale: 1, stageX: 0, stageY: 0, tableScale: 1 };
+    }
+
+    function applyWideOrMediumLayout(shotType, focusPlayer, showMainHand) {
+      const cameraStage = document.getElementById("cameraStage");
+      const tableWrap = document.getElementById("tableWrap");
+      const tableStage = document.getElementById("tableStage");
+      const handWrap = document.getElementById("handWrap");
+      const handStage = document.getElementById("handStage");
+
+      const camera = getCameraConfig(shotType, focusPlayer);
+      const players = getSeatLayoutForShot(shotType, focusPlayer);
+      const cluster = getBottomHeroCluster(shotType, focusPlayer);
+
+      cameraStage.style.transform =
+        `translate(${camera.stageX}px, ${camera.stageY}px) scale(${camera.stageScale})`;
+
+      tableWrap.style.display = "block";
+      setBoxStyles(tableWrap, TABLE_BASE);
+      tableStage.style.left = "50%";
+      tableStage.style.top = "50%";
+      tableStage.style.right = "";
+      tableStage.style.transformOrigin = "center center";
+      tableStage.style.transform = `translate(-50%, -50%) scale(${camera.tableScale})`;
+
+      for (const seat of ["top", "left", "right", "bottom"]) {
+        applyPlayerLayout(seat, players[seat], seat === focusPlayer);
+      }
+
+      if (showMainHand && cluster) {
+        handWrap.style.display = "block";
+        setBoxStyles(handWrap, cluster.handBox);
+        handStage.style.transform = `translateX(-50%) scale(${cluster.handScale})`;
+      } else {
+        handWrap.style.display = "none";
+        handStage.innerHTML = "";
+      }
+    }
+
+    function applyCloseLayout(focusPlayer, showMainHand) {
+      const cameraStage = document.getElementById("cameraStage");
+      const tableWrap = document.getElementById("tableWrap");
+      const handWrap = document.getElementById("handWrap");
+      const handStage = document.getElementById("handStage");
+      const players = getSeatLayoutForShot("close", focusPlayer);
+
+      cameraStage.style.transform = "translate(0px, 0px) scale(1)";
+      tableWrap.style.display = "none";
+
+      for (const seat of ["top", "left", "right", "bottom"]) {
+        applyPlayerLayout(seat, players[seat], seat === focusPlayer);
+      }
+
+      if (showMainHand && focusPlayer === "bottom") {
+        const cluster = getBottomHeroCluster("close", "bottom");
+        handWrap.style.display = "block";
+        setBoxStyles(handWrap, cluster.handBox);
+        handStage.style.transform = `translateX(-50%) scale(${cluster.handScale})`;
+      } else {
+        handWrap.style.display = "none";
+        handStage.innerHTML = "";
+      }
+    }
+
+    function applyShotLayout(shotType, focusPlayer, showMainHand) {
+      if (shotType === "close") {
+        applyCloseLayout(focusPlayer, showMainHand);
+      } else {
+        applyWideOrMediumLayout(shotType, focusPlayer, showMainHand);
+      }
+    }
+
+    function shouldShowMainHand(shotType, focusPlayer) {
+      if (shotType === "wide") return true;
+      if (shotType === "medium") return true;
+      if (shotType === "close") return focusPlayer === "bottom";
+      return false;
+    }
+
+    function setStatus(type, lines) {
+      const statusMessage = document.getElementById("statusMessage");
+      statusMessage.className = "";
+      statusMessage.textContent = "";
+
+      if (!lines || (Array.isArray(lines) && lines.length === 0)) {
+        statusMessage.style.display = "none";
+        return;
+      }
+
+      const text = Array.isArray(lines) ? lines.join("\n") : String(lines);
+      statusMessage.textContent = text;
+      statusMessage.classList.add(type === "success" ? "status-success" : "status-error");
+    }
+
+    function renderStoryboard() {
+      const cutNumber = document.getElementById("cutNumber").value.trim() || "01";
+      const shotType = document.getElementById("shotType").value;
+      const focusPlayer = document.getElementById("focusPlayer").value;
+      const tableTiles = document.getElementById("tableTiles").value;
+      const focusHand = document.getElementById("focusHand").value;
+      const cutLabel = document.getElementById("cutLabel");
+      const tableStage = document.getElementById("tableStage");
+      const handStage = document.getElementById("handStage");
+
+      for (const seat of ["top", "left", "right", "bottom"]) {
+        updateSeatContent(seat);
+      }
+
+      const showMainHand = shouldShowMainHand(shotType, focusPlayer);
+      const validation = validateTileInputs(tableTiles, showMainHand ? focusHand : "");
+
+      applyShotLayout(shotType, focusPlayer, showMainHand);
+
+      if (cutLabel) {
+        cutLabel.textContent = `CUT ${cutNumber} • ${shotType.toUpperCase()} • ${focusPlayer.toUpperCase()}`;
+      }
+
+      if (!validation.ok) {
+        tableStage.innerHTML = "";
+        handStage.innerHTML = "";
+        setStatus("error", [
+          "預覽未顯示，請先修正以下問題：",
+          ...validation.messages
+        ]);
+        return;
+      }
+
+      const tableResult = renderTableChain(tableStage, tableTiles, shotType);
+
+      if (showMainHand) {
+        renderHand(handStage, focusHand);
+      } else {
+        handStage.innerHTML = "";
+      }
+
+      if (!tableResult.ok || tableResult.messages.length > 0) {
+        setStatus("error", [
+          "預覽未顯示或牌型有接牌問題，請檢查以下內容：",
+          ...tableResult.messages
+        ]);
+      } else {
+        setStatus("success", "預覽已更新");
+      }
+    }
+
+    function bindAvatarUpload(inputId, seat) {
+      const input = document.getElementById(inputId);
+      input.addEventListener("change", (event) => {
+        const file = event.target.files && event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          avatarState[seat] = reader.result;
+          renderStoryboard();
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function loadDemoWide() {
+      document.getElementById("cutNumber").value = "01";
+      document.getElementById("shotType").value = "wide";
+      document.getElementById("focusPlayer").value = "right";
+      document.getElementById("tableTiles").value = "0-4 4-4 4-5 5-2 2-2 2-1 1-6 6-0";
+      document.getElementById("focusHand").value = "0-3 3-5 5-6";
+      renderStoryboard();
+    }
+
+    function loadDemoMedium() {
+      document.getElementById("cutNumber").value = "02";
+      document.getElementById("shotType").value = "medium";
+      document.getElementById("focusPlayer").value = "bottom";
+      document.getElementById("tableTiles").value = "4-4 4-5 5-2 2-2 2-1 1-6 6-0 0-1";
+      document.getElementById("focusHand").value = "1-3 3-3 3-5";
+      renderStoryboard();
+    }
+
+    function loadDemoClose() {
+      document.getElementById("cutNumber").value = "03";
+      document.getElementById("shotType").value = "close";
+      document.getElementById("focusPlayer").value = "bottom";
+      document.getElementById("tableTiles").value = "4-4 4-5 5-2 2-2 2-1 1-6 6-0 0-1";
+      document.getElementById("focusHand").value = "1-3 3-3 3-5";
+      renderStoryboard();
+    }
+
+    bindAvatarUpload("topAvatar", "top");
+    bindAvatarUpload("leftAvatar", "left");
+    bindAvatarUpload("rightAvatar", "right");
+    bindAvatarUpload("bottomAvatar", "bottom");
+
+    renderStoryboard();
+  </script>
+</body>
+</html>
