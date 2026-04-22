@@ -1253,7 +1253,9 @@
       const scoreValue = document.getElementById(`${seat}Score`).value.trim();
       const tagValue = document.getElementById(`${seat}Tag`).value.trim();
 
-      nameEl.textContent = nameValue || seat;
+      nameEl.textContent = nameValue;
+      nameEl.style.display = nameValue ? "block" : "none";
+
       scoreEl.textContent = formatScore(scoreValue || "0");
 
       if (tagValue) {
