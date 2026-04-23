@@ -375,8 +375,8 @@
           <div class="field">
             <label for="shotType">鏡頭類型</label>
             <select id="shotType">
-              <option value="wide">wide 遠景</option>
-              <option value="medium" selected>medium 中景</option>
+              <option value="wide" selected>wide 遠景</option>
+              <option value="medium">medium 中景</option>
               <option value="close">close 近景特寫</option>
             </select>
           </div>
@@ -394,13 +394,13 @@
           </div>
           <div class="field">
             <label for="focusHand">下方主角手牌</label>
-            <input id="focusHand" type="text" value="0-3 3-5 5-6" />
+            <input id="focusHand" type="text" value="1-5 2-6 3-4" />
           </div>
         </div>
 
         <div class="field">
           <label for="tableTiles">桌面牌型</label>
-          <textarea id="tableTiles">0-4 4-4 4-5 5-2 2-2 2-1 1-6 6-0</textarea>
+          <textarea id="tableTiles">3-0 0-4 4-2 2-2 2-0 0-5 5-6 6-6 6-1 1-3 3-3 3-2 2-1 1-4 4-5 5-5</textarea>
         </div>
       </div>
 
@@ -607,25 +607,30 @@
       bottom: { left: "50%", bottom: 18, transform: "translateX(-50%)", width: 122, avatar: 92, opacity: 1, align: "center" }
     };
 
-    const TABLE_BASE = {
-      left: 20,
-      top: 112,
-      width: 350,
-      height: 286
+    const TABLE_BASES = {
+      wide: {
+        default: { left: 46, top: 138, width: 306, height: 228 }
+      },
+      medium: {
+        bottom: { left: 32, top: 116, width: 326, height: 240 },
+        left:   { left: 120, top: 116, width: 230, height: 226 },
+        right:  { left: 40, top: 116, width: 230, height: 226 },
+        top:    { left: 34, top: 176, width: 322, height: 210 }
+      }
     };
 
     const WIDE_CAMERA = {
       stageScale: 1,
       stageX: 0,
       stageY: 0,
-      tableScale: 0.39
+      tableScale: 0.36
     };
 
     const MEDIUM_CAMERA = {
-      bottom: { stageScale: 1.08, stageX: 0, stageY: -24, tableScale: 0.40 },
-      left:   { stageScale: 1.10, stageX: 36, stageY: -2, tableScale: 0.40 },
-      right:  { stageScale: 1.10, stageX: -36, stageY: -2, tableScale: 0.40 },
-      top:    { stageScale: 1.08, stageX: 0, stageY: 28, tableScale: 0.40 }
+      bottom: { stageScale: 1.06, stageX: 0, stageY: -14, tableScale: 0.37 },
+      left:   { stageScale: 1.1, stageX: 28, stageY: 0, tableScale: 0.335 },
+      right:  { stageScale: 1.1, stageX: -28, stageY: 0, tableScale: 0.335 },
+      top:    { stageScale: 1.06, stageX: 0, stageY: 20, tableScale: 0.34 }
     };
 
     const BOTTOM_HERO_CLUSTERS = {
@@ -1242,6 +1247,449 @@
       }
     }
 
+    function rectsOverlap(a, b, padding = 0) {
+      return !(
+        a.right <= b.left - padding ||
+        a.left >= b.right + padding ||
+        a.bottom <= b.top - padding ||
+        a.top >= b.bottom + padding
+      );
+    }
+
+    function getPhoneRelativeRect(el) {
+      const phone = document.getElementById("storyboardFrame");
+      if (!el || !phone) return null;
+
+      const phoneRect = phone.getBoundingClientRect();
+      const rect = el.getBoundingClientRect();
+
+      return {
+        left: rect.left - phoneRect.left,
+        top: rect.top - phoneRect.top,
+        right: rect.right - phoneRect.left,
+        bottom: rect.bottom - phoneRect.top,
+        width: rect.width,
+        height: rect.height,
+        centerX: rect.left - phoneRect.left + rect.width / 2,
+        centerY: rect.top - phoneRect.top + rect.height / 2
+      };
+    }
+
+    function getAllDominoRects() {
+      return [...document.querySelectorAll("#tableStage .domino")]
+        .map(getPhoneRelativeRect)
+        .filter(Boolean);
+    }
+
+    function getPlayerRectFromLayout(layout, seat) {
+      if (!layout || layout.hidden) return null;
+
+      const width = layout.width || 100;
+      const avatar = layout.avatar || 78;
+      const tagValue = (document.getElementById(`${seat}Tag`)?.value || "").trim();
+      const nameValue = (document.getElementById(`${seat}Name`)?.value || "").trim();
+      const scoreValue = (document.getElementById(`${seat}Score`)?.value || "").trim();
+
+      const tagExtraRight = tagValue ? 36 : 0;
+      const nameHeight = nameValue ? 18 : 0;
+      const scoreHeight = scoreValue ? 28 : 0;
+      const approxHeight = avatar + nameHeight + scoreHeight + 24;
+      const visualWidth = width + tagExtraRight + 8;
+
+      let left = 0;
+      let top = 0;
+
+      if (seat === "top") {
+        left = (390 - width) / 2;
+        top = layout.top || 0;
+      } else if (seat === "left") {
+        left = layout.left || 0;
+        top = layout.top || 0;
+      } else if (seat === "right") {
+        left = 390 - (layout.right || 0) - width;
+        top = layout.top || 0;
+      } else if (seat === "bottom") {
+        left = layout.left || ((390 - width) / 2);
+        top = 694 - (layout.bottom || 0) - approxHeight;
+      }
+
+      const visualLeft = left - 4;
+      const visualTop = top - 2;
+
+      return {
+        left: visualLeft,
+        top: visualTop,
+        right: visualLeft + visualWidth,
+        bottom: visualTop + approxHeight,
+        width: visualWidth,
+        height: approxHeight,
+        centerX: visualLeft + visualWidth / 2,
+        centerY: visualTop + approxHeight / 2
+      };
+    }
+
+    function findCollidingDominoes(playerRect, dominoRects, padding = 0) {
+      if (!playerRect) return [];
+      return dominoRects.filter(rect => rectsOverlap(playerRect, rect, padding));
+    }
+
+    const PLAYER_SAFE_BOUNDS = {
+      wide: {
+        top:   { minLeft: 118, maxLeft: 172, minTop: 6,   maxTop: 34 },
+        left:  { minLeft: 4,   maxLeft: 18,  minTop: 148, maxTop: 340 },
+        right: { minLeft: 280, maxLeft: 298, minTop: 148, maxTop: 340 }
+      },
+      medium: {
+        top:   { minLeft: 96,  maxLeft: 186, minTop: -18, maxTop: 42 },
+        left:  { minLeft: -72, maxLeft: 56,  minTop: 140, maxTop: 332 },
+        right: { minLeft: 206, maxLeft: 336, minTop: 140, maxTop: 332 }
+      }
+    };
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function getLayoutLeftTop(layout, seat) {
+      const rect = getPlayerRectFromLayout(layout, seat);
+      return rect ? { left: rect.left, top: rect.top } : null;
+    }
+
+    function setLayoutLeftTop(layout, seat, left, top) {
+      if (!layout) return layout;
+      const next = clone(layout);
+      const width = next.width || 100;
+      const avatar = next.avatar || 78;
+      const approxHeight = avatar + 54;
+
+      if (seat === "top" || seat === "left") {
+        next.left = Math.round(left);
+        next.top = Math.round(top);
+      } else if (seat === "right") {
+        next.right = Math.round(390 - (left + width));
+        next.top = Math.round(top);
+      } else if (seat === "bottom") {
+        next.left = Math.round(left);
+        next.bottom = Math.round(694 - (top + approxHeight));
+      }
+      return next;
+    }
+
+    function clampPlayerLayout(layout, seat, shotType, isFocus) {
+      if (!layout || layout.hidden || seat === "bottom") return layout;
+      const next = clone(layout);
+      const pos = getLayoutLeftTop(next, seat);
+      if (!pos) return next;
+
+      const width = next.width || 100;
+      const avatar = next.avatar || 78;
+      const height = avatar + 54;
+      const overflow =
+        shotType === "wide"
+          ? 0
+          : (isFocus ? 4 : 72);
+      const viewportMinLeft = -overflow;
+      const viewportMaxLeft = 390 - width + overflow;
+      const viewportMinTop = shotType === "wide" ? 4 : (isFocus ? 4 : -18);
+      const viewportMaxTop = 694 - height + (shotType === "wide" ? 4 : (isFocus ? 4 : 24));
+
+      let left = clamp(pos.left, viewportMinLeft, viewportMaxLeft);
+      let top = clamp(pos.top, viewportMinTop, viewportMaxTop);
+
+      const bounds = PLAYER_SAFE_BOUNDS[shotType] && PLAYER_SAFE_BOUNDS[shotType][seat];
+      if (bounds) {
+        left = clamp(left, bounds.minLeft, bounds.maxLeft);
+        top = clamp(top, bounds.minTop, bounds.maxTop);
+      }
+
+      return setLayoutLeftTop(next, seat, left, top);
+    }
+
+    function isRectFullyInViewport(rect, margin = 4) {
+      if (!rect) return false;
+      return rect.left >= margin && rect.top >= margin && rect.right <= 390 - margin && rect.bottom <= 694 - margin;
+    }
+
+    function countPlayerCollisions(players, dominoRects, shotType, focusPlayer) {
+      const safeGap = shotType === "wide" ? 14 : 18;
+      let count = 0;
+      let focusCollision = false;
+      let focusHitCount = 0;
+      for (const seat of ["top", "left", "right"]) {
+        const rect = getPlayerRectFromLayout(players[seat], seat);
+        const hits = findCollidingDominoes(rect, dominoRects, safeGap);
+        if (hits.length) count += hits.length;
+        if (seat === focusPlayer && hits.length) {
+          focusCollision = true;
+          focusHitCount = hits.length;
+        }
+      }
+      return { count, focusCollision, focusHitCount };
+    }
+
+    function resolveWideMediumAvatarCollisions(shotType, focusPlayer, tableScale) {
+      if (shotType === "close") {
+        return {
+          players: getSeatLayoutForShot(shotType, focusPlayer),
+          collisionCount: 0,
+          focusVisible: true,
+          allInViewport: true,
+          nonFocusVisibleCount: 3,
+          focusCollision: false,
+          focusHitCount: 0,
+          tableScale
+        };
+      }
+
+      let next = clone(getSeatLayoutForShot(shotType, focusPlayer));
+      const dominoRects = getAllDominoRects();
+      const safeGap = shotType === "wide" ? 14 : 18;
+      const seats = ["top", "left", "right"];
+
+      const movePlans = shotType === "wide"
+        ? {
+            top: {
+              focus: [
+                { dx: 0, dy: -14 }, { dx: -10, dy: -10 }, { dx: 10, dy: -10 },
+                { dx: -12, dy: 0 }, { dx: 12, dy: 0 }, { dx: 0, dy: 10 }
+              ],
+              other: [
+                { dx: 0, dy: -14 }, { dx: -12, dy: -8 }, { dx: 12, dy: -8 },
+                { dx: -12, dy: 0 }, { dx: 12, dy: 0 }, { dx: 0, dy: 10 }
+              ]
+            },
+            left: {
+              focus: [
+                { dx: 0, dy: -18 }, { dx: 0, dy: 18 }, { dx: 0, dy: -30 }, { dx: 0, dy: 30 },
+                { dx: -10, dy: -14 }, { dx: -10, dy: 14 }, { dx: -14, dy: 0 }, { dx: 8, dy: -12 }, { dx: 8, dy: 12 }
+              ],
+              other: [
+                { dx: 0, dy: -18 }, { dx: 0, dy: 18 }, { dx: 0, dy: -30 }, { dx: 0, dy: 30 },
+                { dx: -12, dy: -12 }, { dx: -12, dy: 12 }, { dx: -18, dy: 0 }, { dx: 8, dy: -10 }, { dx: 8, dy: 10 }
+              ]
+            },
+            right: {
+              focus: [
+                { dx: 0, dy: -18 }, { dx: 0, dy: 18 }, { dx: 0, dy: -30 }, { dx: 0, dy: 30 },
+                { dx: 10, dy: -14 }, { dx: 10, dy: 14 }, { dx: 14, dy: 0 }, { dx: -8, dy: -12 }, { dx: -8, dy: 12 }
+              ],
+              other: [
+                { dx: 0, dy: -18 }, { dx: 0, dy: 18 }, { dx: 0, dy: -30 }, { dx: 0, dy: 30 },
+                { dx: 12, dy: -12 }, { dx: 12, dy: 12 }, { dx: 18, dy: 0 }, { dx: -8, dy: -10 }, { dx: -8, dy: 10 }
+              ]
+            }
+          }
+        : {
+            top: {
+              focus: [
+                { dx: 0, dy: -14 }, { dx: -10, dy: -10 }, { dx: 10, dy: -10 },
+                { dx: -12, dy: 0 }, { dx: 12, dy: 0 }, { dx: 0, dy: 10 }
+              ],
+              other: [
+                { dx: 0, dy: -14 }, { dx: -12, dy: -8 }, { dx: 12, dy: -8 },
+                { dx: -12, dy: 0 }, { dx: 12, dy: 0 }, { dx: 0, dy: 10 }
+              ]
+            },
+            left: {
+              focus: [
+                { dx: 0, dy: -16 }, { dx: 0, dy: 16 }, { dx: -10, dy: -10 },
+                { dx: -10, dy: 10 }, { dx: -14, dy: 0 }, { dx: 8, dy: -10 }, { dx: 8, dy: 10 }
+              ],
+              other: [
+                { dx: -18, dy: 0 }, { dx: -14, dy: -12 }, { dx: -14, dy: 12 },
+                { dx: 0, dy: -16 }, { dx: 0, dy: 16 }, { dx: 10, dy: -10 }, { dx: 10, dy: 10 }
+              ]
+            },
+            right: {
+              focus: [
+                { dx: 0, dy: -16 }, { dx: 0, dy: 16 }, { dx: 10, dy: -10 },
+                { dx: 10, dy: 10 }, { dx: 14, dy: 0 }, { dx: -8, dy: -10 }, { dx: -8, dy: 10 }
+              ],
+              other: [
+                { dx: 18, dy: 0 }, { dx: 14, dy: -12 }, { dx: 14, dy: 12 },
+                { dx: 0, dy: -16 }, { dx: 0, dy: 16 }, { dx: -10, dy: -10 }, { dx: -10, dy: 10 }
+              ]
+            }
+          };
+
+      for (const seat of seats) {
+        if (!next[seat] || next[seat].hidden) continue;
+        const isFocus = seat === focusPlayer;
+        next[seat] = clampPlayerLayout(next[seat], seat, shotType, isFocus);
+
+        for (let i = 0; i < 36; i++) {
+          const currentRect = getPlayerRectFromLayout(next[seat], seat);
+          const hits = findCollidingDominoes(currentRect, dominoRects, safeGap);
+          if (!hits.length) break;
+
+          const pos = getLayoutLeftTop(next[seat], seat);
+          const plan = movePlans[seat][isFocus ? "focus" : "other"];
+          let bestCandidate = null;
+          let bestScore = null;
+
+          for (const step of plan) {
+            let candidate = setLayoutLeftTop(next[seat], seat, pos.left + step.dx, pos.top + step.dy);
+            candidate = clampPlayerLayout(candidate, seat, shotType, isFocus);
+            const rect = getPlayerRectFromLayout(candidate, seat);
+            const candidateHits = findCollidingDominoes(rect, dominoRects, safeGap).length;
+            const visiblePenalty = isFocus
+              ? (isRectFullyInViewport(rect, 6) ? 0 : 200)
+              : (isRectFullyInViewport(rect, 2) ? 0 : 8);
+            const centerDrift = Math.abs(step.dx) + Math.abs(step.dy);
+            const score = candidateHits * 100 + visiblePenalty + centerDrift;
+
+            if (bestScore == null || score < bestScore) {
+              bestScore = score;
+              bestCandidate = candidate;
+            }
+          }
+
+          if (!bestCandidate) break;
+          const beforeHits = hits.length;
+          const afterHits = findCollidingDominoes(getPlayerRectFromLayout(bestCandidate, seat), dominoRects, safeGap).length;
+          next[seat] = bestCandidate;
+          if (afterHits >= beforeHits && i > 8) break;
+        }
+
+        next[seat] = clampPlayerLayout(next[seat], seat, shotType, isFocus);
+      }
+
+      const focusRect = ["top", "left", "right"].includes(focusPlayer) ? getPlayerRectFromLayout(next[focusPlayer], focusPlayer) : null;
+      const focusVisible = focusRect ? isRectFullyInViewport(focusRect, 6) : true;
+      const allInViewport = ["top","left","right"].every(seat => {
+        const rect = getPlayerRectFromLayout(next[seat], seat);
+        return shotType === "wide"
+          ? isRectFullyInViewport(rect, 2)
+          : (seat === focusPlayer ? isRectFullyInViewport(rect, 6) : true);
+      });
+      const nonFocusVisibleCount = ["top", "left", "right"].filter(seat => {
+        if (seat === focusPlayer) return false;
+        return isRectFullyInViewport(getPlayerRectFromLayout(next[seat], seat), 2);
+      }).length;
+      const collisionInfo = countPlayerCollisions(next, dominoRects, shotType, focusPlayer);
+
+      return {
+        players: next,
+        collisionCount: collisionInfo.count,
+        focusVisible,
+        allInViewport,
+        nonFocusVisibleCount,
+        focusCollision: collisionInfo.focusCollision,
+        focusHitCount: collisionInfo.focusHitCount,
+        tableScale
+      };
+    }
+
+    function getTableBaseForShot(shotType, focusPlayer) {
+      if (shotType === "wide") return clone(TABLE_BASES.wide.default);
+      if (shotType === "medium") return clone(TABLE_BASES.medium[focusPlayer] || TABLE_BASES.medium.bottom);
+      return clone(TABLE_BASES.wide.default);
+    }
+
+    function chooseBestWideMediumLayout(shotType, focusPlayer) {
+      const showMainHand = shouldShowMainHand(shotType, focusPlayer);
+      const camera = getCameraConfig(shotType, focusPlayer);
+      const baseScale = camera.tableScale;
+      const baseTable = getTableBaseForShot(shotType, focusPlayer);
+      const scaleCandidates = shotType === "wide"
+        ? [baseScale, Math.max(0.34, baseScale - 0.02), Math.max(0.32, baseScale - 0.04), Math.max(0.30, baseScale - 0.06)]
+        : [baseScale, Math.max(0.32, baseScale - 0.02), Math.max(0.30, baseScale - 0.04), Math.max(0.28, baseScale - 0.06)];
+      const offsetXCandidates = shotType === "wide"
+        ? [0, 8, 12]
+        : (focusPlayer === "left" ? [0, 10, 20, -8] : focusPlayer === "right" ? [0, -10, -20, 8] : [0, -10, 10, -20, 20]);
+      const offsetYCandidates = shotType === "wide"
+        ? [0, -4, 4]
+        : (focusPlayer === "top" ? [0, 10, 20, 30] : [0, -8, 8, 16]);
+      const cameraXCandidates = shotType === "wide"
+        ? [camera.stageX]
+        : [camera.stageX, camera.stageX - 10, camera.stageX + 10];
+      const cameraYCandidates = shotType === "wide"
+        ? [camera.stageY]
+        : [camera.stageY, camera.stageY - 8, camera.stageY + 8];
+
+      let best = null;
+
+      for (const scale of scaleCandidates) {
+        for (const offsetX of offsetXCandidates) {
+          for (const offsetY of offsetYCandidates) {
+            for (const camX of cameraXCandidates) {
+              for (const camY of cameraYCandidates) {
+                const tableBase = {
+                  left: baseTable.left + offsetX,
+                  top: baseTable.top + offsetY,
+                  width: baseTable.width,
+                  height: baseTable.height
+                };
+                const cameraOverride = {
+                  stageScale: camera.stageScale,
+                  stageX: camX,
+                  stageY: camY,
+                  tableScale: scale
+                };
+
+                applyWideOrMediumLayout(shotType, focusPlayer, showMainHand, scale, null, tableBase, cameraOverride);
+                const result = resolveWideMediumAvatarCollisions(shotType, focusPlayer, scale);
+                applyWideOrMediumLayout(shotType, focusPlayer, showMainHand, scale, result.players, tableBase, cameraOverride);
+
+                const tableCenterX = tableBase.left + tableBase.width / 2;
+                const tableCenterY = tableBase.top + tableBase.height / 2;
+                const centerPenalty =
+                  Math.abs(tableCenterX - 195) * (shotType === "wide" ? 2 : 1) +
+                  Math.abs(tableCenterY - (shotType === "wide" ? 250 : 238));
+                const hiddenPenalty = shotType === "wide"
+                  ? ((result.allInViewport ? 0 : 1) * 3000)
+                  : ((2 - (result.nonFocusVisibleCount || 0)) * 50);
+
+                const score = shotType === "wide"
+                  ? [
+                      result.collisionCount * 1000,
+                      result.allInViewport ? 0 : 3000,
+                      centerPenalty,
+                      Math.round((baseScale - scale) * 1000),
+                      Math.abs(offsetX) + Math.abs(offsetY)
+                    ]
+                  : [
+                      result.focusCollision ? 10000 : 0,
+                      result.collisionCount * 100,
+                      result.focusVisible ? 0 : 3000,
+                      result.allInViewport ? 0 : 200,
+                      hiddenPenalty,
+                      centerPenalty,
+                      Math.round((baseScale - scale) * 1000),
+                      Math.abs(offsetX) + Math.abs(offsetY) + Math.abs(camX - camera.stageX) + Math.abs(camY - camera.stageY)
+                    ];
+
+                result.score = score;
+                result.tableBase = tableBase;
+                result.cameraOverride = cameraOverride;
+
+                if (!best) {
+                  best = result;
+                } else {
+                  const bestScore = best.score;
+                  let isBetter = false;
+                  for (let i = 0; i < score.length; i++) {
+                    if (score[i] < bestScore[i]) {
+                      isBetter = true;
+                      break;
+                    }
+                    if (score[i] > bestScore[i]) {
+                      break;
+                    }
+                  }
+                  if (isBetter) best = result;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      if (best) {
+        applyWideOrMediumLayout(shotType, focusPlayer, showMainHand, best.tableScale, best.players, best.tableBase, best.cameraOverride);
+      }
+    }
+
     function updateSeatContent(seat) {
       const player = document.querySelector(`.player[data-seat="${seat}"]`);
       const avatar = player.querySelector(".avatar");
@@ -1294,75 +1742,128 @@
       }
 
       if (shotType === "medium") {
-        players.top = {
-          left: "50%",
-          top: 10,
-          transform: "translateX(-50%)",
-          width: 90,
-          avatar: 68,
-          opacity: 0.72,
-          align: "center"
-        };
-
-        players.left = {
-          left: 4,
-          top: 228,
-          width: 92,
-          avatar: 70,
-          opacity: 0.72,
-          align: "center"
-        };
-
-        players.right = {
-          right: 4,
-          top: 228,
-          width: 92,
-          avatar: 70,
-          opacity: 0.72,
-          align: "center"
-        };
-
-        players.bottom = getBottomHeroCluster("medium", focusPlayer).player;
-        players[focusPlayer].opacity = 1;
-
-        if (focusPlayer === "top") {
-          players.top = {
-            left: "50%",
-            top: -14,
-            transform: "translateX(-50%)",
-            width: 116,
-            avatar: 90,
-            opacity: 1,
-            align: "center"
-          };
-        }
-
         if (focusPlayer === "left") {
-          players.left = {
-            left: -16,
-            top: 220,
-            width: 116,
-            avatar: 90,
-            opacity: 1,
-            align: "center"
+          return {
+            top: {
+              left: "50%",
+              top: -2,
+              transform: "translateX(-50%)",
+              width: 80,
+              avatar: 58,
+              opacity: 0.62,
+              align: "center"
+            },
+            left: {
+              left: -12,
+              top: 198,
+              width: 126,
+              avatar: 102,
+              opacity: 1,
+              align: "center"
+            },
+            right: {
+              right: -30,
+              top: 240,
+              width: 78,
+              avatar: 56,
+              opacity: 0.52,
+              align: "center"
+            },
+            bottom: getBottomHeroCluster("medium", focusPlayer).player
           };
         }
 
         if (focusPlayer === "right") {
-          players.right = {
-            right: -16,
-            top: 220,
-            width: 116,
-            avatar: 90,
-            opacity: 1,
-            align: "center"
+          return {
+            top: {
+              left: "50%",
+              top: -2,
+              transform: "translateX(-50%)",
+              width: 80,
+              avatar: 58,
+              opacity: 0.62,
+              align: "center"
+            },
+            left: {
+              left: -30,
+              top: 240,
+              width: 78,
+              avatar: 56,
+              opacity: 0.52,
+              align: "center"
+            },
+            right: {
+              right: -12,
+              top: 198,
+              width: 126,
+              avatar: 102,
+              opacity: 1,
+              align: "center"
+            },
+            bottom: getBottomHeroCluster("medium", focusPlayer).player
           };
         }
 
-        if (focusPlayer === "bottom") {
-          players.bottom = getBottomHeroCluster("medium", "bottom").player;
+        if (focusPlayer === "top") {
+          return {
+            top: {
+              left: "50%",
+              top: -10,
+              transform: "translateX(-50%)",
+              width: 122,
+              avatar: 98,
+              opacity: 1,
+              align: "center"
+            },
+            left: {
+              left: -28,
+              top: 248,
+              width: 72,
+              avatar: 52,
+              opacity: 0.5,
+              align: "center"
+            },
+            right: {
+              right: -28,
+              top: 248,
+              width: 72,
+              avatar: 52,
+              opacity: 0.5,
+              align: "center"
+            },
+            bottom: getBottomHeroCluster("medium", focusPlayer).player
+          };
         }
 
+        players.top = {
+          left: "50%",
+          top: 4,
+          transform: "translateX(-50%)",
+          width: 84,
+          avatar: 62,
+          opacity: 0.66,
+          align: "center"
+        };
+
+        players.left = {
+          left: -14,
+          top: 232,
+          width: 84,
+          avatar: 60,
+          opacity: 0.62,
+          align: "center"
+        };
+
+        players.right = {
+          right: -14,
+          top: 232,
+          width: 84,
+          avatar: 60,
+          opacity: 0.62,
+          align: "center"
+        };
+
+        players.bottom = getBottomHeroCluster("medium", "bottom").player;
         return players;
       }
 
@@ -1405,27 +1906,29 @@
       return { stageScale: 1, stageX: 0, stageY: 0, tableScale: 1 };
     }
 
-    function applyWideOrMediumLayout(shotType, focusPlayer, showMainHand) {
+    function applyWideOrMediumLayout(shotType, focusPlayer, showMainHand, tableScaleOverride = null, playerLayoutsOverride = null, tableBaseOverride = null, cameraOverride = null) {
       const cameraStage = document.getElementById("cameraStage");
       const tableWrap = document.getElementById("tableWrap");
       const tableStage = document.getElementById("tableStage");
       const handWrap = document.getElementById("handWrap");
       const handStage = document.getElementById("handStage");
 
-      const camera = getCameraConfig(shotType, focusPlayer);
-      const players = getSeatLayoutForShot(shotType, focusPlayer);
+      const camera = cameraOverride || getCameraConfig(shotType, focusPlayer);
+      const players = playerLayoutsOverride || getSeatLayoutForShot(shotType, focusPlayer);
+      const effectiveTableScale = tableScaleOverride != null ? tableScaleOverride : camera.tableScale;
+      const tableBase = tableBaseOverride || getTableBaseForShot(shotType, focusPlayer);
       const cluster = getBottomHeroCluster(shotType, focusPlayer);
 
       cameraStage.style.transform =
         `translate(${camera.stageX}px, ${camera.stageY}px) scale(${camera.stageScale})`;
 
       tableWrap.style.display = "block";
-      setBoxStyles(tableWrap, TABLE_BASE);
+      setBoxStyles(tableWrap, tableBase);
       tableStage.style.left = "50%";
       tableStage.style.top = "50%";
       tableStage.style.right = "";
       tableStage.style.transformOrigin = "center center";
-      tableStage.style.transform = `translate(-50%, -50%) scale(${camera.tableScale})`;
+      tableStage.style.transform = `translate(-50%, -50%) scale(${effectiveTableScale})`;
 
       for (const seat of ["top", "left", "right", "bottom"]) {
         applyPlayerLayout(seat, players[seat], seat === focusPlayer);
@@ -1544,6 +2047,13 @@
         ]);
       } else {
         setStatus("success", "預覽已更新");
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (shotType === "wide" || shotType === "medium") {
+              chooseBestWideMediumLayout(shotType, focusPlayer);
+            }
+          });
+        });
       }
     }
 
@@ -1565,8 +2075,8 @@
       document.getElementById("cutNumber").value = "01";
       document.getElementById("shotType").value = "wide";
       document.getElementById("focusPlayer").value = "right";
-      document.getElementById("tableTiles").value = "0-4 4-4 4-5 5-2 2-2 2-1 1-6 6-0";
-      document.getElementById("focusHand").value = "0-3 3-5 5-6";
+      document.getElementById("tableTiles").value = "3-0 0-4 4-2 2-2 2-0 0-5 5-6 6-6 6-1 1-3 3-3 3-2 2-1 1-4 4-5 5-5";
+      document.getElementById("focusHand").value = "1-5 2-6 3-4";
       renderStoryboard();
     }
 
@@ -1574,8 +2084,8 @@
       document.getElementById("cutNumber").value = "02";
       document.getElementById("shotType").value = "medium";
       document.getElementById("focusPlayer").value = "bottom";
-      document.getElementById("tableTiles").value = "4-4 4-5 5-2 2-2 2-1 1-6 6-0 0-1";
-      document.getElementById("focusHand").value = "1-3 3-3 3-5";
+      document.getElementById("tableTiles").value = "3-0 0-4 4-2 2-2 2-0 0-5 5-6 6-6 6-1 1-3 3-3 3-2 2-1 1-4 4-5 5-5";
+      document.getElementById("focusHand").value = "1-5 2-6 3-4";
       renderStoryboard();
     }
 
@@ -1583,8 +2093,8 @@
       document.getElementById("cutNumber").value = "03";
       document.getElementById("shotType").value = "close";
       document.getElementById("focusPlayer").value = "bottom";
-      document.getElementById("tableTiles").value = "4-4 4-5 5-2 2-2 2-1 1-6 6-0 0-1";
-      document.getElementById("focusHand").value = "1-3 3-3 3-5";
+      document.getElementById("tableTiles").value = "3-0 0-4 4-2 2-2 2-0 0-5 5-6 6-6 6-1 1-3 3-3 3-2 2-1 1-4 4-5 5-5";
+      document.getElementById("focusHand").value = "1-5 2-6 3-4";
       renderStoryboard();
     }
 
